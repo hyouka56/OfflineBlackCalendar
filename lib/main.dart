@@ -112,7 +112,11 @@ class _CalendarPageState extends State<CalendarPage> {
   }
 
   void _selectDay(DateTime day) {
-    setState(() => _selectedDay = day);
+    setState(() {
+      _selectedDay = day;
+      // Tapping a leading/trailing date moves the calendar into that month.
+      _visibleMonth = DateTime(day.year, day.month);
+    });
   }
 
   void _goToToday() {
@@ -132,7 +136,6 @@ class _CalendarPageState extends State<CalendarPage> {
   Widget build(BuildContext context) {
     final year = _visibleMonth.year;
     final month = _visibleMonth.month;
-    final daysInMonth = DateTime(year, month + 1, 0).day;
     final firstDayOffset = DateTime(year, month, 1).weekday - 1;
 
     return Scaffold(
@@ -228,20 +231,22 @@ class _CalendarPageState extends State<CalendarPage> {
                     padding: EdgeInsets.zero,
                     physics: const NeverScrollableScrollPhysics(),
                     itemCount: 42,
-                    gridDelegate:
-                        SliverGridDelegateWithFixedCrossAxisCount(
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 7,
                       mainAxisExtent: rowHeight,
                       crossAxisSpacing: 0,
                       mainAxisSpacing: 0,
                     ),
                     itemBuilder: (context, index) {
-                      final dayNumber = index - firstDayOffset + 1;
-                      if (dayNumber < 1 || dayNumber > daysInMonth) {
-                        return const SizedBox.shrink();
-                      }
-
-                      final day = DateTime(year, month, dayNumber);
+                      // DateTime normalizes out-of-range days into adjacent months.
+                      final day = DateTime(
+                        year,
+                        month,
+                        index - firstDayOffset + 1,
+                      );
+                      final dayNumber = day.day;
+                      final inVisibleMonth =
+                          day.year == year && day.month == month;
                       final selected = _isSameDay(day, _selectedDay);
                       final today = _isToday(day);
 
@@ -249,9 +254,12 @@ class _CalendarPageState extends State<CalendarPage> {
                         child: Semantics(
                           button: true,
                           label:
-                              '${_months[month - 1]} $dayNumber, $year',
+                              '${_months[day.month - 1]} $dayNumber, ${day.year}',
                           selected: selected,
                           child: InkWell(
+                            key: Key(
+                              'calendarDay-${day.year}-${day.month}-${day.day}',
+                            ),
                             borderRadius: BorderRadius.circular(26),
                             onTap: () => _selectDay(day),
                             child: Container(
@@ -275,7 +283,9 @@ class _CalendarPageState extends State<CalendarPage> {
                                 style: TextStyle(
                                   color: selected
                                       ? Colors.black
-                                      : Colors.white,
+                                      : inVisibleMonth
+                                          ? Colors.white
+                                          : const Color(0xFF777777),
                                   fontSize: 15,
                                   fontWeight: selected || today
                                       ? FontWeight.w700

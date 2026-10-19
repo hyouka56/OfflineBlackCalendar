@@ -54,6 +54,9 @@ jobs:
           grep -q 'android:label="التقويم"' android/app/src/main/AndroidManifest.xml
           grep -q 'android:icon="@drawable/calendar_icon"' android/app/src/main/AndroidManifest.xml
           test -f android/app/src/main/res/drawable/calendar_icon.png
+          test -f assets/app_icon/app_icon.svg
+          grep -q 'fill="#000000"' assets/app_icon/app_icon.svg
+          grep -q 'fill="#FFFFFF"' assets/app_icon/app_icon.svg
           grep -R 'com.calender.black' android/app/src/main
           if grep -R "android.permission.INTERNET" android/app/src/main; then
             echo "Internet permission found in the release/main Android source."
@@ -89,7 +92,7 @@ jobs:
         run: |
           set -euo pipefail
           payload=$(cat <<JSON
-          {"owner":"TomasThrawat","repo":"${{ github.event.repository.name }}","runId":${{ github.run_id }},"artifactName":"offline-black-calendar-apk-arm64-v8a","sha":"${{ github.sha }}"}
+          {"owner":"${{ github.repository_owner }}","repo":"${{ github.event.repository.name }}","runId":${{ github.run_id }},"artifactName":"offline-black-calendar-apk-arm64-v8a","sha":"${{ github.sha }}"}
           JSON
           )
           for attempt in 1 2 3; do
