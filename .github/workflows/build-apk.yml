@@ -37,8 +37,10 @@ jobs:
           cp assets/calendar_icon_xxxhdpi.png android/app/src/main/res/drawable/calendar_icon.png
           printf '\norg.gradle.vfs.watch=false\n' >> android/gradle.properties
 
-      - name: Check Dart formatting
-        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Format and verify Dart source
+        run: |
+          dart format lib test
+          dart format --output=none --set-exit-if-changed lib test
 
       - name: Get dependencies
         run: flutter pub get
