@@ -37,14 +37,14 @@ jobs:
           cp assets/calendar_icon_xxxhdpi.png android/app/src/main/res/drawable/calendar_icon.png
           printf '\norg.gradle.vfs.watch=false\n' >> android/gradle.properties
 
-      - name: Normalize analyzer configuration
-        run: rm -f analysis_options.yaml
+      - name: Check Dart formatting
+        run: dart format --output=none --set-exit-if-changed lib test
 
       - name: Get dependencies
         run: flutter pub get
 
       - name: Analyze
-        run: flutter analyze
+        run: flutter analyze --fatal-infos
 
       - name: Test
         run: flutter test
@@ -53,10 +53,10 @@ jobs:
         run: |
           grep -q 'android:label="التقويم"' android/app/src/main/AndroidManifest.xml
           grep -q 'android:icon="@drawable/calendar_icon"' android/app/src/main/AndroidManifest.xml
+          test -f assets/calendar_icon_xxxhdpi.png
+          file assets/calendar_icon_xxxhdpi.png | grep -q 'PNG image data, 192 x 192'
           test -f android/app/src/main/res/drawable/calendar_icon.png
-          test -f assets/app_icon/app_icon.svg
-          grep -q 'fill="#000000"' assets/app_icon/app_icon.svg
-          grep -q 'fill="#FFFFFF"' assets/app_icon/app_icon.svg
+          file android/app/src/main/res/drawable/calendar_icon.png | grep -q 'PNG image data, 192 x 192'
           grep -R 'com.calender.black' android/app/src/main
           if grep -R "android.permission.INTERNET" android/app/src/main; then
             echo "Internet permission found in the release/main Android source."
@@ -84,28 +84,27 @@ jobs:
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
 
+      # Enable only after the Vercel route and its authentication secret are configured.
+      # Telegram delivery must not invalidate a successfully built and uploaded APK.
       - name: Send successful APK to Telegram
-        if: ${{ success() }}
+        if: ${{ success() && vars.HYOUKA_BUILD_WEBHOOK != '' }}
         env:
-          HYOUKA_BUILD_WEBHOOK: https://hyouka-http-mcp.vercel.app/api/telegram-build
+          HYOUKA_BUILD_WEBHOOK: ${{ vars.HYOUKA_BUILD_WEBHOOK }}
+          MCP_AUTH_TOKEN: ${{ secrets.MCP_AUTH_TOKEN }}
           GITHUB_ACTION_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          if [ -z "$MCP_AUTH_TOKEN" ]; then
+            echo "Telegram notification skipped because the MCP_AUTH_TOKEN secret is not configured."
+            exit 0
+          fi
           payload=$(cat <<JSON
           {"owner":"${{ github.repository_owner }}","repo":"${{ github.event.repository.name }}","runId":${{ github.run_id }},"artifactName":"offline-black-calendar-apk-arm64-v8a","sha":"${{ github.sha }}"}
           JSON
           )
-          for attempt in 1 2 3; do
-            if curl --fail-with-body --silent --show-error --request POST \
-              --header "Authorization: Bearer $GITHUB_ACTION_TOKEN" \
-              --header "Content-Type: application/json" \
-              --data "$payload" \
-              "$HYOUKA_BUILD_WEBHOOK"
-            then
-              exit 0
-            fi
-            if [ "$attempt" -lt 3 ]; then
-              sleep $((attempt * 5))
-            fi
-          done
-          exit 1
+          curl --fail-with-body --silent --show-error --request POST \
+            --header "X-MCP-Auth: Bearer $MCP_AUTH_TOKEN" \
+            --header "X-GitHub-Token: Bearer $GITHUB_ACTION_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data "$payload" \
+            "$HYOUKA_BUILD_WEBHOOK"
